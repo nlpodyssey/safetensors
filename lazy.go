@@ -5,16 +5,13 @@
 package safetensors
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"math/bits"
-	"sort"
 
 	"github.com/nlpodyssey/safetensors/dtype"
-	"github.com/nlpodyssey/safetensors/float16"
 	"github.com/nlpodyssey/safetensors/header"
 )
 
@@ -46,8 +43,8 @@ type LazyTensor struct {
 //
 // If headerSizeLimit is set to a positive number, its value is used to
 // limit the reading of safetensors header. This can be useful to guard
-// against attack or tampered/garbage data, avoiding giant memory allocation
-// to hold the header information. A value of zero, or a negative number, have
+// against attacks or tampered/garbage data, avoiding giant memory allocations
+// to hold header information. A value of zero, or a negative number, have
 // no limiting effects.
 //
 // The current "seek" position of "rs" is used as a base for all further
@@ -119,18 +116,7 @@ func (st *LazyST) AllTensors() ([]Tensor, error) {
 	if _, err := st.rs.Seek(st.dataOffset, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("failed to seek to byte-buffer offset: %w", err)
 	}
-
-	tensorSlice := st.tensors.TensorSlice()
-	sort.Sort(header.TensorSliceByDataOffsets{TensorSlice: tensorSlice})
-
-	out := make([]Tensor, len(st.tensors))
-	for i, ht := range tensorSlice {
-		var err error
-		if out[i], err = readTensor(ht, st.rs); err != nil {
-			return nil, fmt.Errorf("failed to read data of tensor %q: %w", ht.Name, err)
-		}
-	}
-	return out, nil
+	return readAllTensors(st.tensors, st.rs, true)
 }
 
 // LazyTensor returns a LazyTensor by its name, and whether it has been found.
@@ -178,7 +164,7 @@ func (lt LazyTensor) Tensor() (Tensor, error) {
 	if err := lt.seekTensorData(); err != nil {
 		return Tensor{}, err
 	}
-	return readTensor(lt.t, lt.rs)
+	return readTensor(lt.t, lt.rs, true)
 }
 
 // RawTensor converts the LazyTensor into a RawTensor, with raw []byte
@@ -236,36 +222,6 @@ func (lt LazyTensor) ReadAndCopyData(w io.Writer) (written int64, err error) {
 	return io.CopyN(w, lt.rs, int64(size))
 }
 
-func readValidHeader(r io.Reader, sizeLimit int) (header.Header, error) {
-	if sizeLimit > 0 {
-		r = io.LimitReader(r, int64(sizeLimit))
-	}
-	head, err := header.Read(r)
-	if err != nil {
-		return header.Header{}, fmt.Errorf("failed to read safetensors header: %w", err)
-	}
-	if err = head.Validate(); err != nil {
-		return header.Header{}, fmt.Errorf("safetensors header is invalid: %w", err)
-	}
-	return head, nil
-}
-
-func readTensor(ht header.Tensor, r io.Reader) (Tensor, error) {
-	data, err := makeTensorData(ht)
-	if err != nil {
-		return Tensor{}, err
-	}
-	if err = binary.Read(r, binary.LittleEndian, data); err != nil {
-		return Tensor{}, fmt.Errorf("failed to read and convert tensor data: %w", err)
-	}
-	return Tensor{
-		name:  ht.Name,
-		dType: ht.DType,
-		shape: copyShape(ht.Shape),
-		data:  data,
-	}, nil
-}
-
 func (lt LazyTensor) seekTensorData() error {
 	offset, err := checkedAddNonNegInt64(lt.dataOffset, int64(lt.t.DataOffsets.Begin))
 	if err != nil {
@@ -275,48 +231,6 @@ func (lt LazyTensor) seekTensorData() error {
 		return fmt.Errorf("failed to seek to tensor data offset: %w", err)
 	}
 	return nil
-}
-
-func makeTensorData(ht header.Tensor) (any, error) {
-	size := (ht.DataOffsets.End - ht.DataOffsets.Begin) / ht.DType.Size()
-	switch ht.DType {
-	case dtype.Bool:
-		return make([]bool, size), nil
-	case dtype.U8:
-		return make([]uint8, size), nil
-	case dtype.I8:
-		return make([]int8, size), nil
-	case dtype.U16:
-		return make([]uint16, size), nil
-	case dtype.I16:
-		return make([]int16, size), nil
-	case dtype.F16:
-		return make([]float16.F16, size), nil
-	case dtype.BF16:
-		return make([]float16.BF16, size), nil
-	case dtype.U32:
-		return make([]uint32, size), nil
-	case dtype.I32:
-		return make([]int32, size), nil
-	case dtype.F32:
-		return make([]float32, size), nil
-	case dtype.U64:
-		return make([]uint64, size), nil
-	case dtype.I64:
-		return make([]int64, size), nil
-	case dtype.F64:
-		return make([]float64, size), nil
-	}
-	return nil, fmt.Errorf("invalid or unsupported DType %s", ht.DType)
-}
-
-func copyShape(shape []int) []int {
-	if len(shape) == 0 {
-		return nil
-	}
-	s := make([]int, len(shape))
-	copy(s, shape)
-	return s
 }
 
 var errInt64SumOverflow = errors.New("int64 sum overflow")
