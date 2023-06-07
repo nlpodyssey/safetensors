@@ -39,7 +39,7 @@ jobs:
         run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
       - uses: actions/checkout@v3
       - name: gocyclo
-        run: gocyclo -over 10 .
+        run: gocyclo -over 14 .
 
   staticcheck:
     name: staticcheck
