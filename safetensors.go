@@ -65,7 +65,7 @@ func ReadAllRaw(r io.Reader, headerSizeLimit int) (RawST, error) {
 		return RawST{}, err
 	}
 
-	tensors, err := readAllRawTensors(head.Tensors, r)
+	tensors, err := readAllRawTensors(head.Tensors, r, false)
 	if err != nil {
 		return RawST{}, err
 	}
@@ -104,14 +104,14 @@ func readAllTensors(tm header.TensorMap, r io.Reader, safeCopy bool) ([]Tensor, 
 	return out, nil
 }
 
-func readAllRawTensors(tm header.TensorMap, r io.Reader) ([]RawTensor, error) {
+func readAllRawTensors(tm header.TensorMap, r io.Reader, safeCopy bool) ([]RawTensor, error) {
 	tensorSlice := tm.TensorSlice()
 	sort.Sort(header.TensorSliceByDataOffsets{TensorSlice: tensorSlice})
 
 	out := make([]RawTensor, len(tensorSlice))
 	for i, ht := range tensorSlice {
 		var err error
-		if out[i], err = readRawTensor(ht, r); err != nil {
+		if out[i], err = readRawTensor(ht, r, safeCopy); err != nil {
 			return nil, fmt.Errorf("failed to read data of tensor %q: %w", ht.Name, err)
 		}
 	}
@@ -135,11 +135,15 @@ func readTensor(ht header.Tensor, r io.Reader, safeCopy bool) (Tensor, error) {
 	}, nil
 }
 
-func readRawTensor(ht header.Tensor, r io.Reader) (RawTensor, error) {
+func readRawTensor(ht header.Tensor, r io.Reader, safeCopy bool) (RawTensor, error) {
+	shape := ht.Shape
+	if safeCopy {
+		shape = copyShape(shape)
+	}
 	rt := RawTensor{
 		name:  ht.Name,
 		dType: ht.DType,
-		shape: ht.Shape,
+		shape: shape,
 		data:  nil,
 	}
 

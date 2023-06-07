@@ -94,6 +94,10 @@ func TestLazyST_LazyTensor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, allTensors, len(commonDefinitions))
 
+	allRawTensors, err := st.AllRawTensors()
+	require.NoError(t, err)
+	assert.Len(t, allRawTensors, len(commonDefinitions))
+
 	for name, def := range commonDefinitions {
 		t.Run(fmt.Sprintf("tensor %q", name), func(t *testing.T) {
 			lt, ok := st.LazyTensor(name)
@@ -130,6 +134,8 @@ func TestLazyST_LazyTensor(t *testing.T) {
 				assert.Equal(t, def.shape, rawTensor.Shape())
 			}
 			assert.Equal(t, def.bytes, rawTensor.Data())
+
+			assert.Contains(t, allRawTensors, rawTensor)
 
 			data, err := lt.ReadData()
 			require.NoError(t, err)

@@ -119,6 +119,14 @@ func (st *LazyST) AllTensors() ([]Tensor, error) {
 	return readAllTensors(st.tensors, st.rs, true)
 }
 
+// AllRawTensors is similar to LazyST.AllTensors, but returns RawTensor objects.
+func (st *LazyST) AllRawTensors() ([]RawTensor, error) {
+	if _, err := st.rs.Seek(st.dataOffset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek to byte-buffer offset: %w", err)
+	}
+	return readAllRawTensors(st.tensors, st.rs, true)
+}
+
 // LazyTensor returns a LazyTensor by its name, and whether it has been found.
 //
 // If ok is false, the LazyTensor is the zero-value, and must not be used.
