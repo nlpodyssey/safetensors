@@ -215,16 +215,17 @@ func (lt LazyTensor) ReadData() ([]byte, error) {
 	return data, nil
 }
 
-// ReadAndCopyData reads raw tensor data and copies it to the given io.Writer.
+// WriteTo reads raw tensor data and copies it to the given io.Writer.
+// This method satisfies io.WriterTo interface.
 //
 // Data is copied with io.CopyN, so, apart from an internal buffer, this
 // function does not allocate the entire tensor's data in memory.
-func (lt LazyTensor) ReadAndCopyData(w io.Writer) (written int64, err error) {
+func (lt LazyTensor) WriteTo(w io.Writer) (int64, error) {
 	size := lt.t.DataOffsets.End - lt.t.DataOffsets.Begin
 	if size == 0 {
 		return 0, nil
 	}
-	if err = lt.seekTensorData(); err != nil {
+	if err := lt.seekTensorData(); err != nil {
 		return 0, err
 	}
 	return io.CopyN(w, lt.rs, int64(size))

@@ -142,7 +142,7 @@ func TestLazyST_LazyTensor(t *testing.T) {
 			assert.Equal(t, def.bytes, data)
 
 			buf := bytes.Buffer{}
-			n, err := lt.ReadAndCopyData(&buf)
+			n, err := lt.WriteTo(&buf)
 			require.NoError(t, err)
 			assert.Equal(t, int64(len(def.bytes)), n)
 			assert.Equal(t, def.bytes, buf.Bytes())
