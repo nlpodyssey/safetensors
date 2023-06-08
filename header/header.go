@@ -4,6 +4,8 @@
 
 package header
 
+import "bytes"
+
 // Header provides tensors information and metadata, as defined by
 // the safetensors format.
 type Header struct {
@@ -17,3 +19,18 @@ type Header struct {
 
 // Metadata is a set of free-form key/value string pairs.
 type Metadata map[string]string
+
+// UnmarshalJSON decodes a safetensors JSON header.
+// The resulting Header is not validated.
+// Header.ByteBufferOffset is always zero.
+func (h *Header) UnmarshalJSON(b []byte) error {
+	r := bytes.NewReader(b)
+	raw, err := readAndDecodeJSON(r, int64(len(b)))
+	if err != nil {
+		return err
+	}
+	if *h, err = convertRawHeader(raw); err != nil {
+		return err
+	}
+	return nil
+}
