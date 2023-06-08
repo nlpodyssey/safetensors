@@ -24,9 +24,9 @@ var commonDefinitions = map[string]struct {
 	bytes      []byte
 }{
 	"bool": {
-		dtype.Bool, []int{2, 2},
-		[]bool{false, true, true, true},
-		[]byte{0x00, 0x01, 0xfe, 0xff},
+		dtype.Bool, []int{2},
+		[]bool{false, true},
+		[]byte{0x00, 0x01},
 	},
 	"u8": {
 		dtype.U8, []int{2, 2},

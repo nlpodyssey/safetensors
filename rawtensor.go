@@ -5,6 +5,8 @@
 package safetensors
 
 import (
+	"io"
+
 	"github.com/nlpodyssey/safetensors/dtype"
 )
 
@@ -40,4 +42,11 @@ func (rt RawTensor) Shape() []int {
 // There is no striding.
 func (rt RawTensor) Data() []byte {
 	return rt.data
+}
+
+// WriteTo writes the tensor's raw Data to w.
+// It satisfies io.WriterTo interface.
+func (rt RawTensor) WriteTo(w io.Writer) (int64, error) {
+	n, err := w.Write(rt.data)
+	return int64(n), err
 }

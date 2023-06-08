@@ -164,6 +164,7 @@ func readTypedTensorData(ht header.Tensor, r io.Reader) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// FIXME: binary.Read allocates too much
 	if err = binary.Read(r, binary.LittleEndian, data); err != nil {
 		return Tensor{}, fmt.Errorf("failed to read and convert tensor data: %w", err)
 	}

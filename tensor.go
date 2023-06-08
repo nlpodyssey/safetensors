@@ -5,6 +5,9 @@
 package safetensors
 
 import (
+	"encoding/binary"
+	"io"
+
 	"github.com/nlpodyssey/safetensors/dtype"
 )
 
@@ -55,4 +58,25 @@ func (t Tensor) Shape() []int {
 // Possible values are documented on the main Tensor type.
 func (t Tensor) Data() any {
 	return t.data
+}
+
+// WriteTo converts the tensor's Data to safetensors-compliant byte format,
+// writing the result to w.
+// It satisfies io.WriterTo interface.
+func (t Tensor) WriteTo(w io.Writer) (int64, error) {
+	wc := writeCounter{w: w, counter: 0}
+	// FIXME: binary.Write allocates too much
+	err := binary.Write(&wc, binary.LittleEndian, t.data)
+	return wc.counter, err
+}
+
+type writeCounter struct {
+	w       io.Writer
+	counter int64
+}
+
+func (wc *writeCounter) Write(p []byte) (int, error) {
+	n, err := wc.w.Write(p)
+	wc.counter += int64(n)
+	return n, err
 }
