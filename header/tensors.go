@@ -20,19 +20,6 @@ type Tensor struct {
 // The Shape of a tensor.
 type Shape []int
 
-// DataOffsets describes "[Begin, End)" byte range of the tensor's data
-// within the safetensors byte-buffer.
-//
-// Tensor data starts at Begin byte index (inclusive) and ends at End byte
-// index (exclusive). Both positions are relative to the beginning of the
-// byte-buffer.
-type DataOffsets struct {
-	// Begin is the lower bound byte index (included).
-	Begin int
-	// End is the upper bound byte index (excluded).
-	End int
-}
-
 // TensorMap is a set of Tensor objects mapped by their name.
 type TensorMap map[string]Tensor
 
