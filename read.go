@@ -5,9 +5,10 @@
 package safetensors
 
 import (
-	"encoding/binary"
+	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 
 	"github.com/nlpodyssey/safetensors/dtype"
@@ -159,51 +160,6 @@ func readRawTensor(ht header.Tensor, r io.Reader, safeCopy bool) (RawTensor, err
 	return rt, nil
 }
 
-func readTypedTensorData(ht header.Tensor, r io.Reader) (any, error) {
-	data, err := makeTypedTensorData(ht)
-	if err != nil {
-		return nil, err
-	}
-	// FIXME: binary.Read allocates too much
-	if err = binary.Read(r, binary.LittleEndian, data); err != nil {
-		return Tensor{}, fmt.Errorf("failed to read and convert tensor data: %w", err)
-	}
-	return data, nil
-}
-
-func makeTypedTensorData(ht header.Tensor) (any, error) {
-	size := (ht.DataOffsets.End - ht.DataOffsets.Begin) / ht.DType.Size()
-	switch ht.DType {
-	case dtype.Bool:
-		return make([]bool, size), nil
-	case dtype.U8:
-		return make([]uint8, size), nil
-	case dtype.I8:
-		return make([]int8, size), nil
-	case dtype.U16:
-		return make([]uint16, size), nil
-	case dtype.I16:
-		return make([]int16, size), nil
-	case dtype.F16:
-		return make([]float16.F16, size), nil
-	case dtype.BF16:
-		return make([]float16.BF16, size), nil
-	case dtype.U32:
-		return make([]uint32, size), nil
-	case dtype.I32:
-		return make([]int32, size), nil
-	case dtype.F32:
-		return make([]float32, size), nil
-	case dtype.U64:
-		return make([]uint64, size), nil
-	case dtype.I64:
-		return make([]int64, size), nil
-	case dtype.F64:
-		return make([]float64, size), nil
-	}
-	return nil, fmt.Errorf("invalid or unsupported DType %s", ht.DType)
-}
-
 func copyShape(shape []int) []int {
 	if len(shape) == 0 {
 		return nil
@@ -211,4 +167,153 @@ func copyShape(shape []int) []int {
 	s := make([]int, len(shape))
 	copy(s, shape)
 	return s
+}
+
+func readTypedTensorData(ht header.Tensor, r io.Reader) (any, error) {
+	byteSize := ht.DataOffsets.End - ht.DataOffsets.Begin
+	typedSize := byteSize / ht.DType.Size()
+	lr := io.LimitedReader{R: r, N: int64(byteSize)}
+	br := bufio.NewReader(&lr)
+
+	switch ht.DType {
+	case dtype.Bool:
+		return readBoolData(br, typedSize)
+	case dtype.U8:
+		return readU8Data(br, typedSize)
+	case dtype.I8:
+		return readI8Data(br, typedSize)
+	case dtype.U16:
+		return read16bitData[uint16](br, typedSize)
+	case dtype.I16:
+		return read16bitData[int16](br, typedSize)
+	case dtype.F16:
+		return read16bitData[float16.F16](br, typedSize)
+	case dtype.BF16:
+		return read16bitData[float16.BF16](br, typedSize)
+	case dtype.U32:
+		return read32bitData[uint32](br, typedSize)
+	case dtype.I32:
+		return read32bitData[int32](br, typedSize)
+	case dtype.F32:
+		return readF32Data(br, typedSize)
+	case dtype.U64:
+		return read64bitData[uint64](br, typedSize)
+	case dtype.I64:
+		return read64bitData[int64](br, typedSize)
+	case dtype.F64:
+		return readF64Data(br, typedSize)
+	}
+	return nil, fmt.Errorf("invalid or unsupported DType %s", ht.DType)
+}
+
+func readBoolData(r io.Reader, size int) ([]bool, error) {
+	var a [1]byte
+	b := a[:]
+
+	out := make([]bool, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = a[0] != 0
+	}
+	return out, nil
+}
+
+func readU8Data(r io.Reader, size int) ([]uint8, error) {
+	out := make([]uint8, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, out[i:i+1]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func readI8Data(r io.Reader, size int) ([]int8, error) {
+	var a [1]byte
+	b := a[:]
+
+	out := make([]int8, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = int8(a[0])
+	}
+	return out, nil
+}
+
+func read16bitData[T uint16 | int16 | float16.F16 | float16.BF16](r io.Reader, size int) ([]T, error) {
+	var a [2]byte
+	b := a[:]
+
+	out := make([]T, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = T(a[0]) | T(a[1])<<8
+	}
+	return out, nil
+}
+
+func read32bitData[T uint32 | int32](r io.Reader, size int) ([]T, error) {
+	var a [4]byte
+	b := a[:]
+
+	out := make([]T, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = T(a[0]) | T(a[1])<<8 | T(a[2])<<16 | T(a[3])<<24
+	}
+	return out, nil
+}
+
+func readF32Data(r io.Reader, size int) ([]float32, error) {
+	var a [4]byte
+	b := a[:]
+
+	out := make([]float32, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = math.Float32frombits(
+			uint32(a[0]) | uint32(a[1])<<8 | uint32(a[2])<<16 | uint32(a[3])<<24)
+	}
+	return out, nil
+}
+
+func read64bitData[T uint64 | int64](r io.Reader, size int) ([]T, error) {
+	var a [8]byte
+	b := a[:]
+
+	out := make([]T, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = T(b[0]) | T(b[1])<<8 | T(b[2])<<16 | T(b[3])<<24 |
+			T(b[4])<<32 | T(b[5])<<40 | T(b[6])<<48 | T(b[7])<<56
+	}
+	return out, nil
+}
+
+func readF64Data(r io.Reader, size int) ([]float64, error) {
+	var a [8]byte
+	b := a[:]
+
+	out := make([]float64, size)
+	for i := range out {
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+		out[i] = math.Float64frombits(
+			uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+				uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56)
+	}
+	return out, nil
 }
