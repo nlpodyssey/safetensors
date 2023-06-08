@@ -4,7 +4,10 @@
 
 package header
 
-import "bytes"
+import (
+	"bytes"
+	"encoding/json"
+)
 
 // Header provides tensors information and metadata, as defined by
 // the safetensors format.
@@ -33,4 +36,24 @@ func (h *Header) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	return nil
+}
+
+// MarshalJSON encodes the header to safetensors format.
+// The value of Header.ByteBufferOffset is ignored.
+func (h Header) MarshalJSON() ([]byte, error) {
+	m := make(map[string]any, len(h.Tensors)+1)
+
+	if len(h.Metadata) > 0 {
+		m["__metadata__"] = h.Metadata
+	}
+
+	for name, t := range h.Tensors {
+		m[name] = t
+	}
+
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }

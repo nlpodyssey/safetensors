@@ -11,10 +11,10 @@ import (
 // Tensor provides properties of a tensor, as described within a
 // safetensors header.
 type Tensor struct {
-	Name        string
-	DType       dtype.DType
-	Shape       Shape
-	DataOffsets DataOffsets
+	Name        string      `json:"-"`
+	DType       dtype.DType `json:"dtype"`
+	Shape       Shape       `json:"shape"`
+	DataOffsets DataOffsets `json:"data_offsets"`
 }
 
 // TensorMap is a set of Tensor objects mapped by their name.
