@@ -6,7 +6,6 @@ package safetensors
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -108,7 +107,7 @@ func makeHeaderTensorMap(tensors header.TensorSlice) (header.TensorMap, error) {
 var headerPadding = [8]byte{' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}
 
 func writeHeader(w io.Writer, head header.Header) error {
-	jsonHeader, err := makeJSONHeader(head)
+	jsonHeader, err := head.MarshalJSON()
 	if err != nil {
 		return err
 	}
@@ -140,28 +139,6 @@ func writeHeaderSize(w io.Writer, n int) error {
 		return fmt.Errorf("failed to write header size: %w", err)
 	}
 	return nil
-}
-
-func makeJSONHeader(head header.Header) ([]byte, error) {
-	m := make(map[string]any, len(head.Tensors)+1)
-
-	if len(head.Metadata) > 0 {
-		m["__metadata__"] = head.Metadata
-	}
-
-	for _, t := range head.Tensors {
-		m[t.Name] = map[string]any{
-			"dtype":        t.DType,
-			"shape":        t.Shape,
-			"data_offsets": [2]int{t.DataOffsets.Begin, t.DataOffsets.End},
-		}
-	}
-
-	b, err := json.Marshal(m)
-	if err != nil {
-		return nil, fmt.Errorf("failed to JSON-marshal header: %w", err)
-	}
-	return b, nil
 }
 
 func writeTensors[T SerializableTensor](w io.Writer, tensors []T, tensorSlice header.TensorSlice) error {
