@@ -17,9 +17,6 @@ type Tensor struct {
 	DataOffsets DataOffsets
 }
 
-// The Shape of a tensor.
-type Shape []int
-
 // TensorMap is a set of Tensor objects mapped by their name.
 type TensorMap map[string]Tensor
 
