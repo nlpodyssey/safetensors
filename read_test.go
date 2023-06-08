@@ -124,7 +124,7 @@ var commonDefinitions = map[string]struct {
 		nil,
 	},
 	"no shape scalar": {
-		dtype.U8, []int{},
+		dtype.U8, nil,
 		[]uint8{42},
 		[]byte{42},
 	},
@@ -187,7 +187,11 @@ func TestReadAll(t *testing.T) {
 				t.Fatal("tensor not found")
 			}
 			assert.Equal(t, def.dType, tensor.DType())
-			assert.Equal(t, def.shape, tensor.Shape())
+			if len(def.shape) == 0 {
+				assert.Nil(t, tensor.Shape())
+			} else {
+				assert.Equal(t, def.shape, tensor.Shape())
+			}
 			assert.Equal(t, def.typedValue, tensor.Data())
 		})
 	}
@@ -216,7 +220,11 @@ func TestReadAllRaw(t *testing.T) {
 				t.Fatal("tensor not found")
 			}
 			assert.Equal(t, def.dType, tensor.DType())
-			assert.Equal(t, def.shape, tensor.Shape())
+			if len(def.shape) == 0 {
+				assert.Equal(t, []int{}, tensor.Shape())
+			} else {
+				assert.Equal(t, def.shape, tensor.Shape())
+			}
 			assert.Equal(t, def.bytes, tensor.Data())
 		})
 	}

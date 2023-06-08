@@ -203,7 +203,7 @@ func readTypedTensorData(ht header.Tensor, r io.Reader) (any, error) {
 	case dtype.F64:
 		return readF64Data(br, typedSize)
 	}
-	return nil, fmt.Errorf("invalid or unsupported DType %s", ht.DType)
+	return nil, fmt.Errorf("invalid or unsupported DType: %s", ht.DType)
 }
 
 func readBoolData(r io.Reader, size int) ([]bool, error) {

@@ -42,6 +42,103 @@ type Tensor struct {
 	data  any
 }
 
+// NewTensor performs validity checks over the given properties and returns
+// a Tensor with those properties if validation succeeds, otherwise an error.
+//
+// If the error returned is not nil, the Tensor is a zero-value that
+// must not be used.
+//
+// Here is an overview of the rules applied for validation:
+//   - an empty name ("") is allowed
+//   - the dType must be valid (see dtype.DType.Validate)
+//   - an empty or nil shape is allowed (a scalar value is implied)
+//   - the shape must not contain negative values
+//   - the type of data must match the dType, according to the pairs listed
+//     on Tensor documentation
+//   - the number of data elements must match the shape
+//
+// These rules are in place as a minimum guarantee that the Tensor can be
+// serialized correctly on a later stage. For the same reason, the given
+// shape is copied before being assigned to the Tensor.
+//
+// Since "data" can possibly take a large amount of memory, its value is NOT
+// copied, and is directly assigned to the Tensor. Accidental modifications
+// to the data given to this function could lead to subsequent unexpected
+// content or corrupted serialization, even in absence of errors.
+func NewTensor(name string, dType dtype.DType, shape []int, data any) (Tensor, error) {
+	dataLen, err := checkTypesAndGetDataLen(dType, data)
+	if err != nil {
+		return Tensor{}, err
+	}
+	shapeSize, err := checkedShapeSize(shape)
+	if err != nil {
+		return Tensor{}, err
+	}
+	if shapeSize != dataLen {
+		return Tensor{}, fmt.Errorf("the size computed from shape (%d) does not match data length (%d)", shapeSize, dataLen)
+	}
+	return Tensor{
+		name:  name,
+		dType: dType,
+		shape: copyShape(shape),
+		data:  data,
+	}, nil
+}
+
+func checkedShapeSize(shape []int) (int, error) {
+	size := 1
+	for _, v := range shape {
+		if v < 0 {
+			return 0, fmt.Errorf("shape contains a negative value")
+		}
+		size *= v
+	}
+	return size, nil
+}
+
+func checkTypesAndGetDataLen(dt dtype.DType, data any) (int, error) {
+	switch dt {
+	case dtype.Bool:
+		return resolveDataLen[bool](dt, data)
+	case dtype.U8:
+		return resolveDataLen[uint8](dt, data)
+	case dtype.I8:
+		return resolveDataLen[int8](dt, data)
+	case dtype.U16:
+		return resolveDataLen[uint16](dt, data)
+	case dtype.I16:
+		return resolveDataLen[int16](dt, data)
+	case dtype.F16:
+		return resolveDataLen[float16.F16](dt, data)
+	case dtype.BF16:
+		return resolveDataLen[float16.BF16](dt, data)
+	case dtype.U32:
+		return resolveDataLen[uint32](dt, data)
+	case dtype.I32:
+		return resolveDataLen[int32](dt, data)
+	case dtype.F32:
+		return resolveDataLen[float32](dt, data)
+	case dtype.U64:
+		return resolveDataLen[uint64](dt, data)
+	case dtype.I64:
+		return resolveDataLen[int64](dt, data)
+	case dtype.F64:
+		return resolveDataLen[float64](dt, data)
+	}
+	return 0, fmt.Errorf("invalid or unsupported DType: %s", dt)
+}
+
+func resolveDataLen[T any](dt dtype.DType, data any) (int, error) {
+	if data == nil {
+		return 0, nil
+	}
+	y, ok := data.([]T)
+	if !ok {
+		return 0, fmt.Errorf("expected DType %s to match data type %T, actual data type %T", dt, y, data)
+	}
+	return len(y), nil
+}
+
 // The Name of the tensor.
 func (t Tensor) Name() string {
 	return t.name
@@ -52,13 +149,20 @@ func (t Tensor) DType() dtype.DType {
 	return t.dType
 }
 
-// The Shape of the tensor. It can be nil.
+// The Shape of the tensor.
+//
+// If the shape is zero-length, it returns nil, otherwise a new slice
+// is allocated and returned (the shape is copied to prevent tampering).
 func (t Tensor) Shape() []int {
-	return t.shape
+	return copyShape(t.shape)
 }
 
 // The Data of the tensor.
 // Possible values are documented on the main Tensor type.
+//
+// The value returned is NOT a copy: any change to its content will
+// affect the Tensor too. Accidental modifications could lead to subsequent
+// unexpected content or corrupted serialization, even in absence of errors.
 func (t Tensor) Data() any {
 	return t.data
 }
@@ -104,7 +208,7 @@ func (t Tensor) writeTo(w io.Writer) (int64, error) {
 	case dtype.F64:
 		return writeF64Data(w, t.data)
 	}
-	return 0, fmt.Errorf("invalid or unsupported DType %s", t.dType)
+	return 0, fmt.Errorf("invalid or unsupported DType: %s", t.dType)
 }
 
 func writeBoolData(w io.Writer, data any) (int64, error) {
