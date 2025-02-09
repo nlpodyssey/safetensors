@@ -70,17 +70,17 @@ func ReadMetadata(buffer []byte) (uint64, Metadata, error) {
 
 // Tensors returns a list of named views of all tensors.
 func (st SafeTensors) Tensors() []NamedTensorView {
-	tensors := make([]NamedTensorView, 0, len(st.metadata.indexMap))
+	tensors := make([]NamedTensorView, len(st.metadata.indexMap))
 	for name, index := range st.metadata.indexMap {
 		info := &st.metadata.tensors[index]
-		tensors = append(tensors, NamedTensorView{
+		tensors[index] = NamedTensorView{
 			Name: name,
 			TensorView: TensorView{
 				dType: info.DType,
 				shape: info.Shape,
 				data:  st.data[info.DataOffsets[0]:info.DataOffsets[1]],
 			},
-		})
+		}
 	}
 	return tensors
 }
@@ -102,9 +102,9 @@ func (st SafeTensors) Tensor(name string) (TensorView, bool) {
 
 // The Names of all tensors.
 func (st SafeTensors) Names() []string {
-	names := make([]string, 0, len(st.metadata.indexMap))
-	for name := range st.metadata.indexMap {
-		names = append(names, name)
+	names := make([]string, len(st.metadata.indexMap))
+	for name, index := range st.metadata.indexMap {
+		names[index] = name
 	}
 	return names
 }
